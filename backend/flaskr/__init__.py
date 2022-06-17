@@ -233,6 +233,7 @@ def create_app(test_config=None):
     one question at a time is displayed, the user is allowed to answer
     and shown whether they were correct or not.
     """
+    """
     @app.route("/quizzes", methods=['POST'])
     def quizzes():
         body = request.get_json()
@@ -271,6 +272,38 @@ def create_app(test_config=None):
 
         return trivia_questions
     """
+    @app.route('/quizzes', methods=['POST'])
+    def post_quiz():
+        body = request.get_json()
+        quiz_category = body.get('quiz_category')
+        previous_question = body.get('previous_question')
+        try:
+            if (quiz_category['id'] == 0):
+                questionsQuery = Question.query.all()
+            else:
+                questionsQuery = Question.query.filter_by(
+                    category=quiz_category['id']).all()
+            randomIndex = random.randint(0, len(questionsQuery)-1)
+            nextQuestion = questionsQuery[randomIndex]
+            stillQuestions = True
+            while nextQuestion.id not in previous_question:
+                nextQuestion = questionsQuery[randomIndex]
+                return jsonify({
+                    'success': True,
+                    'question': {
+                        "answer": nextQuestion.answer,
+                        "category": nextQuestion.category,
+                        "difficulty": nextQuestion.difficulty,
+                        "id": nextQuestion.id,
+                        "question": nextQuestion.question
+                    },
+                    'previousQuestion': previous_question
+                })
+        except Exception as e:
+            print(e)
+            abort(404)
+
+    """
     @TODO:
     Create error handlers for all expected errors
     including 404 and 422.
@@ -306,6 +339,14 @@ def create_app(test_config=None):
             "error": 400,
             "message": "Bad Request"
         }), 400
+
+    @app.errorhandler(405)
+    def invalid_method(error):
+        return jsonify({
+            "success": False,
+            'error': 405,
+            "message": "Invalid method!"
+        }), 405
 
 
 
