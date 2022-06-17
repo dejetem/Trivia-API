@@ -203,30 +203,24 @@ def create_app(test_config=None):
     categories in the left column will cause only questions of that
     category to be shown.
     """
-    @app.route('/categories/<int:cat_id>/questions', methods=['GET'])
-    def get_questions_by_category(cat_id):
-        #cat_id = cat_id + 1
-        category = Category.query.get(cat_id)
-        #category = Category.query.filter(
-        #    Category.id == cat_id).first()
+    @app.route('/categories/<int:id>/questions', methods=['GET'])
+    def get_questions_in_category(id):
+        # get the category by given id
+        category = Category.query.filter_by(id=id).one_or_none()
+        if category:
+            # get all questions in a category
+            questionsInCat = Question.query.filter_by(category=str(id)).all()
+            currentQuestions = questions_paginate(request, questionsInCat)
 
-        if cat_id is None:
+            return jsonify({
+                'success': True,
+                'questions': currentQuestions,
+                'total_questions': len(questionsInCat),
+                'current_category': category.type
+            })
+        # if the category is not found
+        else:
             abort(404)
-
-        selection = Question.query.order_by(Question.id).filter(
-            Question.category == cat_id).all()
-        get_current_questions = questions_paginate(request, selection)
-
-        #if len(get_current_questions) == 0:
-        #    abort(404)
-
-        return jsonify({
-            'success': True,
-            'questions': get_current_questions,
-            'total_questions': len(selection),
-            'categories': category.type,
-            'current_category': category.id
-        })
 
     """
     @TODO:
@@ -239,43 +233,43 @@ def create_app(test_config=None):
     one question at a time is displayed, the user is allowed to answer
     and shown whether they were correct or not.
     """
-    @app.route('/quizzes', methods=['POST'])
-    def post_quiz():
-        # show the qestion category an the previous_question
+    @app.route("/quizzes", methods=['POST'])
+    def quizzes():
         body = request.get_json()
-        quiz_category = body.get('quiz_category')
-        previous_question = body.get('previous_question')
-
         try:
-            if (quiz_category['id'] == 0):
-                questionsQuery = Question.query.all()
-            else:
-                questionsQuery = Question.query.filter_by(
-                    category=quiz_category['id']).all()
+            get_prev_que = body.get('previous_questions')
+            get_quiz_category = body.get('quiz_category')['id']
 
-            randomIndex = random.randint(0, len(questionsQuery)-1)
-            nextQuestion = questionsQuery[randomIndex]
+            return filter_quiz(get_prev_que, get_quiz_category)
 
-            stillQuestions = True
-            while nextQuestion.id not in previous_question:
-                nextQuestion = questionsQuery[randomIndex]
-                return jsonify({
-                    'success': True,
-                    'question': {
-                        "answer": nextQuestion.answer,
-                        "category": nextQuestion.category,
-                        "difficulty": nextQuestion.difficulty,
-                        "id": nextQuestion.id,
-                        "question": nextQuestion.question
-                    },
-                    'previousQuestion': previous_question
-                })
+        except:
+            abort(400)
 
-        except Exception as e:
-            print(e)
+    def filter_quiz(get_prev_que, get_quiz_category):
+        trivia_questions = []
+        if get_quiz_category == 0:
+            trivia_questions = Question.query.filter(
+                Question.id.notin_(get_prev_que)).all()
+        else:
+            trivia_questions = get_filtered_quiz(get_prev_que, get_quiz_category)
+        retrieved_question = None
+        if len(trivia_questions) > 0:
+            rand_quiz = random.randrange(0, len(trivia_questions))
+            retrieved_question = trivia_questions[rand_quiz].format()
+        return jsonify({
+                'success': True,
+                'question': retrieved_question,
+                'total_questions': len(trivia_questions)
+            })
+
+    def get_filtered_quiz(get_prev_que, get_quiz_category):
+        category = Category.query.get(get_quiz_category)
+        if category is None:
             abort(404)
+        trivia_questions = Question.query.filter(Question.id.notin_(
+            get_prev_que), Question.category == get_quiz_category).all()
 
-
+        return trivia_questions
     """
     @TODO:
     Create error handlers for all expected errors
